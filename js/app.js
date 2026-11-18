@@ -84,6 +84,9 @@ class AppController {
       el.addEventListener('click', () => this.closeAllModals());
     });
 
+    // Touch gesture & backdrop dismiss for modal sheets
+    this.setupSheetGestures();
+
     // Header & Floating Cart click
     const headerCartBtn = document.getElementById('headerCartBtn');
     const floatingCartBar = document.getElementById('floatingCartBar');
@@ -132,6 +135,100 @@ class AppController {
     } catch (e) {}
   }
 
+  openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.classList.add('open');
+    document.body.classList.add('modal-open');
+    document.documentElement.classList.add('modal-open');
+    const sheet = modal.querySelector('.sheet-window');
+    if (sheet) {
+      sheet.style.transform = '';
+      sheet.style.transition = '';
+    }
+  }
+
+  setupSheetGestures() {
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      // Backdrop click to dismiss
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          this.closeAllModals();
+        }
+      });
+
+      const sheet = overlay.querySelector('.sheet-window');
+      const handle = overlay.querySelector('.sheet-handle');
+      const header = overlay.querySelector('.sheet-header');
+      if (!sheet) return;
+
+      let startY = 0;
+      let currentY = 0;
+      let isDragging = false;
+      let startTime = 0;
+
+      const onTouchStart = (e) => {
+        if (window.innerWidth >= 640) return;
+        const touch = e.touches[0];
+        startY = touch.clientY;
+        currentY = touch.clientY;
+        startTime = Date.now();
+        isDragging = true;
+        sheet.style.transition = 'none';
+      };
+
+      const onTouchMove = (e) => {
+        if (!isDragging || window.innerWidth >= 640) return;
+        const touch = e.touches[0];
+        currentY = touch.clientY;
+        const deltaY = currentY - startY;
+
+        if (deltaY > 0) {
+          if (e.cancelable) e.preventDefault();
+          sheet.style.transform = `translate3d(0, ${deltaY}px, 0)`;
+        }
+      };
+
+      const onTouchEnd = () => {
+        if (!isDragging || window.innerWidth >= 640) return;
+        isDragging = false;
+        const deltaY = currentY - startY;
+        const elapsed = Math.max(1, Date.now() - startTime);
+        const velocity = deltaY / elapsed;
+
+        sheet.style.transition = 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)';
+
+        if (deltaY > 90 || velocity > 0.45) {
+          sheet.style.transform = 'translate3d(0, 100%, 0)';
+          setTimeout(() => {
+            this.closeAllModals();
+            sheet.style.transform = '';
+            sheet.style.transition = '';
+          }, 200);
+        } else {
+          sheet.style.transform = 'translate3d(0, 0, 0)';
+          setTimeout(() => {
+            sheet.style.transform = '';
+            sheet.style.transition = '';
+          }, 240);
+        }
+      };
+
+      if (handle) {
+        handle.addEventListener('touchstart', onTouchStart, { passive: false });
+        handle.addEventListener('touchmove', onTouchMove, { passive: false });
+        handle.addEventListener('touchend', onTouchEnd);
+        handle.addEventListener('touchcancel', onTouchEnd);
+      }
+      if (header) {
+        header.addEventListener('touchstart', onTouchStart, { passive: false });
+        header.addEventListener('touchmove', onTouchMove, { passive: false });
+        header.addEventListener('touchend', onTouchEnd);
+        header.addEventListener('touchcancel', onTouchEnd);
+      }
+    });
+  }
+
   switchView(viewName) {
     if (viewName === 'admin' && !this.store.isAdmin) {
       this.openAdminLoginModal();
@@ -178,14 +275,15 @@ class AppController {
     this.renderFloatingCart();
     this.updateAdminHeaderUI();
 
-    // REAL-TIME CART UPDATE: If cart modal is currently open, re-render it immediately!
+    // REAL-TIME CART UPDATE: If cart modal is currently open, update in-place with zero drag/stutter!
     const cartModal = document.getElementById('cartModal');
     if (cartModal && cartModal.classList.contains('open')) {
       if (this.currentCartStep === 'cart') {
-        this.renderCartSheet('cart');
+        this.updateCartInPlace();
       } else {
         this.updateCheckoutSummary();
       }
+      return; // Do NOT rebuild background 92-card product grid while cart modal is open!
     }
 
     if (this.currentView === 'shop') {
@@ -225,7 +323,7 @@ class AppController {
     if (modal) {
       if (input) input.value = '';
       if (err) err.style.display = 'none';
-      modal.classList.add('open');
+      this.openModal('adminLoginModal');
       setTimeout(() => input?.focus(), 150);
     }
   }
@@ -409,7 +507,7 @@ class AppController {
 
     this.currentCartStep = step;
     this.renderCartSheet(step);
-    modal.classList.add('open');
+    this.openModal('cartModal');
   }
 
   renderCartSheet(step = 'cart') {
@@ -445,7 +543,7 @@ class AppController {
 
       container.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">${totals.totalItems} Items Selected</span>
+          <span class="cart-total-badge" style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">${totals.totalItems} Items Selected</span>
           <button style="background: none; border: none; color: var(--danger); font-size: 0.8rem; font-weight: 600; cursor: pointer;" onclick="window.app.clearCartConfirm()">
             Clear All
           </button>
@@ -484,11 +582,11 @@ class AppController {
         <div class="order-summary-box">
           <div class="summary-row">
             <span>Subtotal (Excl. VAT):</span>
-            <span style="font-weight: 700;">£${totals.subtotalExVat.toFixed(2)}</span>
+            <span class="summary-subtotal" style="font-weight: 700;">£${totals.subtotalExVat.toFixed(2)}</span>
           </div>
           <div class="summary-row">
             <span>UK VAT (20%):</span>
-            <span style="font-weight: 700;">£${totals.vatAmount.toFixed(2)}</span>
+            <span class="summary-vat" style="font-weight: 700;">£${totals.vatAmount.toFixed(2)}</span>
           </div>
           <div class="summary-row total-row">
             <span>Total Payable (Inc. VAT):</span>
@@ -496,7 +594,7 @@ class AppController {
           </div>
           <div class="summary-row profit-highlight">
             <span>🎉 Your Shop Resale Profit:</span>
-            <span>+£${totals.estimatedProfit.toFixed(2)} (${Math.round(totals.marginPct)}% Margin)</span>
+            <span class="summary-profit">+£${totals.estimatedProfit.toFixed(2)} (${Math.round(totals.marginPct)}% Margin)</span>
           </div>
         </div>
       `;
@@ -599,6 +697,66 @@ class AppController {
           </button>
         </div>
       `;
+    }
+  }
+
+  updateCartInPlace() {
+    const totals = this.store.getCartTotals();
+    const container = document.getElementById('cartModalBody');
+    if (!container) return;
+
+    if (totals.items.length === 0) {
+      this.renderCartSheet('cart');
+      return;
+    }
+
+    const itemsList = container.querySelector('.cart-items-list');
+    if (!itemsList) {
+      this.renderCartSheet('cart');
+      return;
+    }
+
+    const domCards = itemsList.querySelectorAll('.cart-item-card');
+    if (domCards.length !== totals.items.length) {
+      this.renderCartSheet('cart');
+      return;
+    }
+
+    // Fast in-place DOM updates (0ms lag, no DOM destruction)
+    const badge = container.querySelector('.cart-total-badge');
+    if (badge) badge.textContent = `${totals.totalItems} Items Selected`;
+
+    for (const card of domCards) {
+      const pid = card.getAttribute('data-cart-id');
+      const item = totals.items.find(i => i.product.id === pid);
+      if (!item) {
+        this.renderCartSheet('cart');
+        return;
+      }
+
+      const lineTotal = card.querySelector('.cart-item-line-total');
+      if (lineTotal) lineTotal.textContent = `£${item.lineIncVat.toFixed(2)}`;
+
+      const input = card.querySelector('.stepper-input');
+      if (input && document.activeElement !== input) {
+        if (input.value !== String(item.quantity)) {
+          input.value = item.quantity;
+        }
+      }
+    }
+
+    const subtotalEl = container.querySelector('.summary-subtotal');
+    if (subtotalEl) subtotalEl.textContent = `£${totals.subtotalExVat.toFixed(2)}`;
+
+    const vatEl = container.querySelector('.summary-vat');
+    if (vatEl) vatEl.textContent = `£${totals.vatAmount.toFixed(2)}`;
+
+    const totalEl = container.querySelector('.total-amount');
+    if (totalEl) totalEl.textContent = `£${totals.totalIncVat.toFixed(2)}`;
+
+    const profitEl = container.querySelector('.summary-profit');
+    if (profitEl) {
+      profitEl.textContent = `+£${totals.estimatedProfit.toFixed(2)} (${Math.round(totals.marginPct)}% Margin)`;
     }
   }
 
@@ -829,7 +987,7 @@ class AppController {
       </div>
     `;
 
-    modal.classList.add('open');
+    this.openModal('confirmationModal');
   }
 
   // --- Product Detail Lightbox Modal ---
@@ -931,7 +1089,7 @@ class AppController {
       </div>
     `;
 
-    modal.classList.add('open');
+    this.openModal('productDetailModal');
   }
 
   simulateDetailProfit(productId, qty) {
@@ -1559,7 +1717,7 @@ class AppController {
       </form>
     `;
 
-    modal.classList.add('open');
+    this.openModal('editProductModal');
   }
 
   handleEditImageSelect(e) {
@@ -1795,7 +1953,21 @@ class AppController {
   }
 
   closeAllModals() {
-    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.modal-overlay').forEach(m => {
+      m.classList.remove('open');
+      const sheet = m.querySelector('.sheet-window');
+      if (sheet) {
+        sheet.style.transform = '';
+        sheet.style.transition = '';
+      }
+    });
+    document.body.classList.remove('modal-open');
+    document.documentElement.classList.remove('modal-open');
+
+    // Re-synchronize background shop cards once when modal is closed
+    if (this.currentView === 'shop') {
+      this.renderProductGrid();
+    }
   }
 }
 
