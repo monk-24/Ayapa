@@ -510,9 +510,33 @@ class Store {
     return digits;
   }
 
+  // --- Generate Universal Live PDF Invoice URL ---
+  generateInvoiceUrl(order) {
+    try {
+      const compact = {
+        orderId: order.orderId,
+        createdAt: order.createdAt,
+        client: order.client,
+        items: order.items,
+        totals: order.totals
+      };
+      const json = JSON.stringify(compact);
+      let base64 = '';
+      if (typeof btoa !== 'undefined') {
+        base64 = btoa(unescape(encodeURIComponent(json)));
+      } else if (typeof Buffer !== 'undefined') {
+        base64 = Buffer.from(json).toString('base64');
+      }
+      return `https://monk-24.github.io/Ayapa/?order=${order.orderId}&d=${encodeURIComponent(base64)}`;
+    } catch (e) {
+      return `https://monk-24.github.io/Ayapa/?order=${order.orderId}`;
+    }
+  }
+
   // --- WhatsApp Link Generator (for AYAPA EPOS and Retail Customer) ---
   generateWhatsAppLink(order, target = 'ayapa') {
     const c = order.client;
+    const invoiceUrl = this.generateInvoiceUrl(order);
 
     if (target === 'customer') {
       const customerPhone = this.cleanPhoneNumber(c.mobileNumber);
@@ -538,6 +562,8 @@ class Store {
       text += `Sort Code: ${this.settings.sortCode || '20-00-00'}\n`;
       text += `Account No: ${this.settings.accountNumber || '83920192'}\n`;
       text += `Reference: *${order.orderId}*\n\n`;
+      text += `📄 *View & Download PDF Invoice Online:*\n`;
+      text += `${invoiceUrl}\n\n`;
       text += `📞 For order support or inquiries, contact AYAPA wholesale dispatch on +44 7767 935049.`;
 
       const encoded = encodeURIComponent(text);
@@ -547,7 +573,7 @@ class Store {
     // Default target: AYAPA EPOS WhatsApp (+44 7767 935049)
     const targetPhone = this.cleanPhoneNumber(this.settings.whatsappNumber || '447767935049');
 
-    let text = `📦 *NEW WHOLESALE ORDER - AYAPA ACCESSORIES*\n`;
+    let text = `📦 *NEW WHOLESALE ORDER & PRO-FORMA INVOICE - AYAPA ACCESSORIES*\n`;
     text += `*Order ID:* ${order.orderId}\n`;
     text += `*Date:* ${new Date(order.createdAt).toLocaleDateString('en-GB')}\n\n`;
 
@@ -571,7 +597,9 @@ class Store {
     text += `Subtotal (Excl. VAT): *£${order.totals.subtotalExVat.toFixed(2)}*\n`;
     text += `VAT (20%): *£${order.totals.vatAmount.toFixed(2)}*\n`;
     text += `*TOTAL PAYABLE (Inc. VAT): £${order.totals.totalIncVat.toFixed(2)}*\n\n`;
-    text += `💳 *Payment:* Pro-forma Invoice / BACS / COD\n`;
+    text += `💳 *Payment:* Pro-forma Invoice / BACS / COD\n\n`;
+    text += `📄 *Open & Print Live PDF Invoice:*\n`;
+    text += `${invoiceUrl}\n\n`;
     text += `Please confirm stock availability and delivery schedule. Thank you!`;
 
     const encoded = encodeURIComponent(text);
@@ -581,6 +609,7 @@ class Store {
   // --- Email Invoice Link Generator ---
   generateEmailInvoice(order) {
     const c = order.client;
+    const invoiceUrl = this.generateInvoiceUrl(order);
     const subject = `AYAPA Wholesale Invoice #${order.orderId} - ${c.shopName}`;
     let body = `Hello ${c.contactName || c.shopName},\n\n`;
     body += `Thank you for your wholesale order with AYAPA Mobile Accessories UK!\n\n`;
@@ -608,11 +637,15 @@ class Store {
     body += `Sort Code: ${this.settings.sortCode || '20-00-00'}\n`;
     body += `Account Number: ${this.settings.accountNumber || '83920192'}\n`;
     body += `Payment Reference: ${order.orderId}\n\n`;
+    body += `PDF INVOICE DOWNLOAD & PRINT\n`;
+    body += `------------------------------------------\n`;
+    body += `View, download, and print your official PDF invoice here:\n`;
+    body += `${invoiceUrl}\n\n`;
     body += `For any inquiries or dispatch updates, please contact AYAPA EPOS WhatsApp at +44 7767 935049.\n\n`;
     body += `AYAPA MOBILE ACCESSORIES UK\nhttps://monk-24.github.io/Ayapa/`;
 
     const mailto = `mailto:${c.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    return { subject, body, mailto };
+    return { subject, body, mailto, invoiceUrl };
   }
 
   // --- Filtering & Sorting ---

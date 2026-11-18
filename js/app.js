@@ -93,6 +93,43 @@ class AppController {
     // Initial renders
     this.renderCategoryChips();
     this.render();
+
+    // Check for incoming order reference from WhatsApp or Email link
+    this.checkForOrderUrlParam();
+  }
+
+  checkForOrderUrlParam() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const orderId = urlParams.get('order');
+      const dataParam = urlParams.get('d');
+
+      if (dataParam) {
+        try {
+          const json = decodeURIComponent(escape(atob(decodeURIComponent(dataParam))));
+          const order = JSON.parse(json);
+          if (order && order.orderId) {
+            setTimeout(() => this.openOrderConfirmationModal(order), 350);
+            return;
+          }
+        } catch (e) {
+          console.warn('Could not parse order parameter:', e);
+        }
+      }
+
+      if (orderId) {
+        let order = this.store.orders.find(o => o.orderId === orderId);
+        if (!order) {
+          try {
+            const allOrders = JSON.parse(localStorage.getItem('ayapa_all_orders_admin') || '[]');
+            order = allOrders.find(o => o.orderId === orderId);
+          } catch (e) {}
+        }
+        if (order) {
+          setTimeout(() => this.openOrderConfirmationModal(order), 350);
+        }
+      }
+    } catch (e) {}
   }
 
   switchView(viewName) {
@@ -612,6 +649,20 @@ class AppController {
         window.open(waLink, '_blank');
       }
 
+      // Automatically trigger customer email invoice draft
+      if (email) {
+        const emailData = this.store.generateEmailInvoice(order);
+        setTimeout(() => {
+          try {
+            const mailAnchor = document.createElement('a');
+            mailAnchor.href = emailData.mailto;
+            mailAnchor.target = '_blank';
+            mailAnchor.rel = 'noopener';
+            mailAnchor.click();
+          } catch (e) {}
+        }, 500);
+      }
+
       // Automatically show confirmation & invoice modal
       this.openOrderConfirmationModal(order, preferredAction);
 
@@ -635,19 +686,28 @@ class AppController {
     const clientEmail = order.client.email || '';
 
     body.innerHTML = `
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="width: 56px; height: 56px; background: var(--success-bg); color: var(--success); border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
-          <svg style="width: 32px; height: 32px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <div style="text-align: center; margin-bottom: 16px;">
+        <div style="width: 52px; height: 52px; background: var(--success-bg); color: var(--success); border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
+          <svg style="width: 30px; height: 30px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
-        <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary); margin-bottom: 4px;">Wholesale Order Confirmed!</h3>
+        <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary); margin-bottom: 2px;">Wholesale Order Confirmed!</h3>
         <p style="font-size: 0.85rem; color: var(--text-secondary);">
-          Order Reference: <strong style="color: var(--accent-gold);">${order.orderId}</strong>
+          Order & Pro-Forma Ref: <strong style="color: var(--accent-gold);">${order.orderId}</strong>
         </p>
-        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
-          Saved to your <strong>My Orders</strong> tab for permanent record & 1-click reordering.
-        </p>
+      </div>
+
+      <!-- Live Dispatch Status Notification -->
+      <div style="background: rgba(16, 185, 129, 0.08); border: 1.5px solid rgba(16, 185, 129, 0.35); border-radius: var(--radius-lg); padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; text-align: left;">
+        <div style="display: flex; align-items: center; gap: 8px; color: #10b981; font-weight: 700; margin-bottom: 4px;">
+          <span>✓</span>
+          <span>Order & Live PDF Link Sent to AYAPA WhatsApp (+44 7767 935049)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.78rem;">
+          <span>📧</span>
+          <span>Pro-Forma Invoice Drafted to: <strong>${clientEmail || 'Store Email'}</strong></span>
+        </div>
       </div>
 
       <!-- Action Dispatch Grid -->
@@ -656,23 +716,23 @@ class AppController {
           <svg style="width: 18px; height: 18px; fill: currentColor;" viewBox="0 0 24 24">
             <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.634.073-1.04-.059-.281-.092-.614-.22-1.03-.399-1.802-.78-2.97-2.6-3.06-2.72-.09-.12-.733-.974-.733-1.86 0-.885.469-1.32.635-1.499.167-.179.366-.224.488-.224.122 0 .243.002.35.007.113.005.263-.042.412.316.155.375.529 1.292.575 1.386.046.094.077.205.015.328-.063.123-.094.2-.187.31-.093.11-.196.245-.28.329-.094.094-.192.197-.082.385.11.187.489.808 1.05 1.307.722.641 1.33.84 1.518.934.188.093.298.079.408-.047.11-.125.469-.546.594-.733.125-.188.25-.156.422-.094.172.062 1.088.513 1.275.607.187.094.312.14.358.219.046.078.046.453-.098.858z"/>
           </svg>
-          <span>📲 Submit Order to AYAPA (+44 7767 935049)</span>
+          <span>📲 Send Order & Live PDF to AYAPA (+44 7767 935049)</span>
         </a>
 
-        <a href="${waCustomerLink}" target="_blank" class="btn-whatsapp-outline" style="padding: 12px 14px; font-size: 0.88rem;">
-          <svg style="width: 18px; height: 18px; fill: currentColor;" viewBox="0 0 24 24">
-            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.634.073-1.04-.059-.281-.092-.614-.22-1.03-.399-1.802-.78-2.97-2.6-3.06-2.72-.09-.12-.733-.974-.733-1.86 0-.885.469-1.32.635-1.499.167-.179.366-.224.488-.224.122 0 .243.002.35.007.113.005.263-.042.412.316.155.375.529 1.292.575 1.386.046.094.077.205.015.328-.063.123-.094.2-.187.31-.093.11-.196.245-.28.329-.094.094-.192.197-.082.385.11.187.489.808 1.05 1.307.722.641 1.33.84 1.518.934.188.093.298.079.408-.047.11-.125.469-.546.594-.733.125-.188.25-.156.422-.094.172.062 1.088.513 1.275.607.187.094.312.14.358.219.046.078.046.453-.098.858z"/>
+        <a href="${emailData.mailto}" class="btn-secondary" style="padding: 12px 14px; font-size: 0.88rem; text-decoration: none;">
+          <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
-          <span>📲 Send Invoice to My WhatsApp (${clientPhone || 'Client Phone'})</span>
+          <span>📧 Send Invoice to Customer Email (${clientEmail || 'N/A'})</span>
         </a>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-          <a href="${emailData.mailto}" class="btn-secondary" style="padding: 10px 12px; font-size: 0.82rem; text-decoration: none;">
-            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-              <polyline points="22,6 12,13 2,6"></polyline>
+          <a href="${waCustomerLink}" target="_blank" class="btn-whatsapp-outline" style="padding: 10px 12px; font-size: 0.82rem;">
+            <svg style="width: 16px; height: 16px; fill: currentColor;" viewBox="0 0 24 24">
+              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.634.073-1.04-.059-.281-.092-.614-.22-1.03-.399-1.802-.78-2.97-2.6-3.06-2.72-.09-.12-.733-.974-.733-1.86 0-.885.469-1.32.635-1.499.167-.179.366-.224.488-.224.122 0 .243.002.35.007.113.005.263-.042.412.316.155.375.529 1.292.575 1.386.046.094.077.205.015.328-.063.123-.094.2-.187.31-.093.11-.196.245-.28.329-.094.094-.192.197-.082.385.11.187.489.808 1.05 1.307.722.641 1.33.84 1.518.934.188.093.298.079.408-.047.11-.125.469-.546.594-.733.125-.188.25-.156.422-.094.172.062 1.088.513 1.275.607.187.094.312.14.358.219.046.078.046.453-.098.858z"/>
             </svg>
-            <span>📧 Email Invoice</span>
+            <span>📲 My WhatsApp</span>
           </a>
 
           <button class="btn-secondary" style="padding: 10px 12px; font-size: 0.82rem;" onclick="window.print()">
