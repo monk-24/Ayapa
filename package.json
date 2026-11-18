@@ -1,0 +1,9 @@
+{
+  "name": "ayypa-wholesale",
+  "version": "1.0.0",
+  "description": "AYAPA Wholesale Mobile Accessories & Repairs B2B Portal",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

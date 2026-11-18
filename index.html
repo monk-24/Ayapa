@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>AYAPA Wholesale | Mobile Accessories & Repairs B2B Portal</title>
+  <meta name="description" content="Wholesale mobile phone accessories, fast charging cables, adapters, car accessories, iPhone LCDs, batteries, and display stands for retail shop owners.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="products/AA4512.jpg">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <a href="#" class="brand-badge-group" onclick="window.app.switchView('shop'); return false;">
+        <div class="brand-logo-box">
+          <span class="brand-name">AYAPA</span>
+          <span class="brand-tag">UK TESTED</span>
+        </div>
+        <div class="header-meta">
+          <span class="header-meta-title">Wholesale B2B Portal</span>
+          <span class="header-meta-sub">Direct Supply for Retail Shops</span>
+        </div>
+      </a>
+
+      <div class="header-actions">
+        <!-- Admin Status Indicator (shows if logged in) -->
+        <span id="headerAdminBadge" class="admin-badge-pill" style="display: none;">STAFF ADMIN</span>
+
+        <!-- Staff / Admin Lock Button -->
+        <button class="staff-lock-btn" id="staffAuthBtn" onclick="window.app.handleAdminAuthClick()" title="AYAPA Staff & Admin Login">
+          <svg style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span id="staffAuthLabel">Staff</span>
+        </button>
+
+        <!-- VAT Toggle Pill -->
+        <div class="vat-toggle-pill" id="vatToggle" title="Toggle price display between Excl. VAT and Inc. VAT">
+          <span class="vat-opt active" id="vatExPill">Ex VAT</span>
+          <span class="vat-opt" id="vatIncPill">Inc VAT</span>
+        </div>
+
+        <!-- Header Cart Icon -->
+        <button class="header-cart-btn" id="headerCartBtn" aria-label="View Cart">
+          <svg style="width: 20px; height: 20px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          </svg>
+          <span class="cart-badge" id="headerCartBadge" style="display: none;">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Shop Main View -->
+  <main id="shopSection">
+    <!-- Search & Filter Area -->
+    <section class="search-filter-section">
+      <div class="search-input-wrapper">
+        <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by SKU code (e.g. AA4512), cable, charger..." autocomplete="off" />
+        <button id="searchClearBtn" class="search-clear-btn" aria-label="Clear Search">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Horizontal Category Chips Carousel -->
+      <div class="category-scroll-container" id="categoryScrollContainer">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+      <!-- Sort & Filter Meta -->
+      <div class="filter-meta-row">
+        <span id="productsCount" style="font-weight: 700;">Loading catalog...</span>
+        <div class="sort-select-wrapper">
+          <select id="sortSelect" aria-label="Sort products">
+            <option value="popular">⚡ Popular / Default</option>
+            <option value="margin-desc">💰 Highest Shop Margin First</option>
+            <option value="price-asc">📈 Price: Low to High</option>
+            <option value="price-desc">📉 Price: High to Low</option>
+            <option value="name">🔤 Product Name</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Wholesale Shop Owner Highlight Banner -->
+    <section class="b2b-notice-banner">
+      <div class="b2b-notice-box">
+        <div class="b2b-notice-text">
+          <div class="b2b-notice-title">
+            <svg style="width: 16px; height: 16px; fill: currentColor;" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path>
+            </svg>
+            <span>Retail Wholesale Order Portal</span>
+          </div>
+          <div class="b2b-notice-desc">
+            Direct bulk trade prices for phone repair & retail stores. Add items, calculate your retail margin, and submit order instantly via WhatsApp or Pro-Forma BACS.
+          </div>
+        </div>
+        <button class="b2b-notice-action" onclick="window.app.openCartModal()">
+          <span>View Cart</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Product Grid -->
+    <section class="main-content">
+      <div class="product-grid" id="productGrid">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </section>
+
+    <!-- Footer with discreet Staff Login link -->
+    <footer class="footer-staff-link">
+      <div>AYAPA Wholesale Mobile Accessories UK • B2B Distribution</div>
+      <div style="margin-top: 4px;">
+        <a onclick="window.app.openAdminLoginModal()">AYAPA Staff & Inventory Login</a>
+      </div>
+    </footer>
+  </main>
+
+  <!-- My Orders View (Shown when My Orders tab active) -->
+  <section id="ordersSection" class="main-content" style="display: none; padding-top: 16px;">
+    <div id="ordersContainer"></div>
+  </section>
+
+  <!-- Admin / Inventory Manager View (Strictly restricted to Admin) -->
+  <section id="adminSection" class="main-content" style="display: none; padding-top: 16px;">
+    <div id="adminContainer"></div>
+  </section>
+
+  <!-- Floating Mobile Cart Bar -->
+  <div class="floating-cart-bar hidden" id="floatingCartBar">
+    <div class="floating-cart-info">
+      <div class="floating-cart-badge">0</div>
+      <div class="floating-cart-price-group">
+        <span class="floating-cart-total">£0.00</span>
+        <span class="floating-cart-vat">(ex. VAT)</span>
+      </div>
+    </div>
+    <button class="floating-cart-action">
+      <span>View Order</span>
+      <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+        <polyline points="12 5 19 12 12 19"></polyline>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Bottom Navigation Bar (Shop, Order Cart, My Orders + Admin if authenticated) -->
+  <nav class="bottom-nav-bar" id="bottomNavBar">
+    <button class="nav-item active" data-nav="shop">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+      <span>Shop</span>
+    </button>
+
+    <button class="nav-item" data-nav="cart">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="9" cy="21" r="1"></circle>
+        <circle cx="20" cy="21" r="1"></circle>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+      </svg>
+      <span>Order Cart</span>
+      <span class="nav-badge" id="navCartBadge" style="display: none;">0</span>
+    </button>
+
+    <button class="nav-item" data-nav="orders">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+      </svg>
+      <span>My Orders</span>
+    </button>
+
+    <!-- Manager Nav Item (ONLY visible when AYAPA Admin is logged in) -->
+    <button class="nav-item" id="adminNavItem" data-nav="admin" style="display: none;">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+      <span>Manager</span>
+    </button>
+  </nav>
+
+  <!-- Cart / Checkout Slide-Up Modal -->
+  <div class="modal-overlay" id="cartModal">
+    <div class="sheet-window">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">
+          <svg style="width: 20px; height: 20px; color: var(--accent-gold);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          </svg>
+          <span id="cartModalTitle">Wholesale Order Cart</span>
+        </div>
+        <button class="sheet-close-btn" data-close-modal aria-label="Close">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet-body" id="cartModalBody">
+        <!-- Rendered by app.js (cart review or checkout form) -->
+      </div>
+
+      <div class="sheet-footer" id="cartModalFooter"></div>
+    </div>
+  </div>
+
+  <!-- Order Confirmation & Pro-Forma Invoice Modal -->
+  <div class="modal-overlay" id="confirmationModal">
+    <div class="sheet-window" style="max-width: 680px;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">
+          <span>Order Confirmation & Pro-Forma Invoice</span>
+        </div>
+        <button class="sheet-close-btn" data-close-modal aria-label="Close">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="sheet-body" id="confirmationModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Product Detail Lightbox Modal -->
+  <div class="modal-overlay" id="productDetailModal">
+    <div class="sheet-window" style="max-width: 520px;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">
+          <span>Product Details & Specs</span>
+        </div>
+        <button class="sheet-close-btn" data-close-modal aria-label="Close">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="sheet-body" id="productDetailModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Admin Edit Product Modal -->
+  <div class="modal-overlay" id="editProductModal">
+    <div class="sheet-window" style="max-width: 500px;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">
+          <span>Edit Product & Pricing</span>
+        </div>
+        <button class="sheet-close-btn" data-close-modal aria-label="Close">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="sheet-body" id="editProductModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Admin Login Passcode Modal -->
+  <div class="modal-overlay" id="adminLoginModal">
+    <div class="sheet-window" style="max-width: 400px;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">
+          <svg style="width: 18px; height: 18px; color: var(--accent-gold);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span>AYAPA Staff Access</span>
+        </div>
+        <button class="sheet-close-btn" data-close-modal aria-label="Close">
+          <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="sheet-body" style="padding: 24px 20px;">
+        <div style="text-align: center; margin-bottom: 16px;">
+          <div style="width: 48px; height: 48px; background: var(--bg-card); border: 1.5px solid var(--accent-gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: var(--accent-gold);">
+            <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">Enter Staff PIN</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Restricted to AYAPA administrators for managing orders and products.</p>
+        </div>
+
+        <form onsubmit="event.preventDefault(); window.app.submitAdminLogin();">
+          <div class="form-group">
+            <input type="password" id="adminPinInput" class="form-input" placeholder="Enter PIN (Default: 1234)" style="text-align: center; font-size: 1.3rem; letter-spacing: 0.3em; font-weight: 800;" autofocus autocomplete="off" />
+          </div>
+          <div id="adminPinError" style="display: none; color: var(--danger); font-size: 0.8rem; text-align: center; margin-bottom: 12px; font-weight: 600;">
+            Incorrect PIN. Please try again.
+          </div>
+          <button type="submit" class="btn-primary">
+            <span>Unlock Admin Portal</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
