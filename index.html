@@ -348,13 +348,18 @@
         </div>
 
         <form onsubmit="event.preventDefault(); window.app.submitAdminLogin();">
+          <div id="adminLockoutNotice" style="display: none; background: var(--danger-bg); border: 1.5px solid var(--danger); border-radius: var(--radius-md); padding: 12px; margin-bottom: 14px; font-size: 0.82rem; color: var(--danger); text-align: center; font-weight: 600;">
+            <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 4px;">⚠️ Security Lockout Active</div>
+            <div>Too many failed attempts. Try again in <span id="adminLockoutCountdown" style="font-family: var(--font-mono); font-weight: 800;">05:00</span></div>
+          </div>
+
           <div class="form-group">
             <input type="password" id="adminPinInput" class="form-input" placeholder="Enter PIN (e.g. 971400)" style="text-align: center; font-size: 1.3rem; letter-spacing: 0.3em; font-weight: 800;" autocomplete="off" />
           </div>
           <div id="adminPinError" style="display: none; color: var(--danger); font-size: 0.8rem; text-align: center; margin-bottom: 12px; font-weight: 600;">
             Incorrect PIN. Please try again.
           </div>
-          <button type="submit" class="btn-primary">
+          <button type="submit" id="adminPinSubmitBtn" class="btn-primary">
             <span>Unlock Admin Portal</span>
           </button>
         </form>

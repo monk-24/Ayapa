@@ -9,6 +9,28 @@ const STORAGE_KEYS = {
   SETTINGS: 'ayapa_settings_v1'
 };
 
+export function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+const SEC_KEYS = {
+  ADMIN_SESSION: 'ayapa_admin_sec_session_v2',
+  FAILED_ATTEMPTS: 'ayapa_admin_sec_failed_attempts_v2',
+  LOCKOUT_UNTIL: 'ayapa_admin_sec_lockout_until_v2',
+  LAST_ORDER_TIME: 'ayapa_sec_last_order_ts_v2'
+};
+
+const MAX_ITEM_QUANTITY = 500;
+const MAX_ORDER_ITEMS = 2500;
+const MAX_ORDER_AMOUNT = 25000;
+const ORDER_COOLDOWN_MS = 30000; // 30 seconds
+
 const _memoryStorage = {};
 const safeStorage = {
   getItem: (key) => {
@@ -40,11 +62,11 @@ const safeStorage = {
 class Store {
   constructor() {
     this.subscribers = [];
+    this.settings = this.loadSettings();
     this.products = this.loadProducts();
     this.cart = this.loadCart();
     this.orders = this.loadOrders();
     this.client = this.loadClient();
-    this.settings = this.loadSettings();
     this.activeCategory = 'All';
     this.searchQuery = '';
     this.sortBy = 'popular'; // popular, price-asc, price-desc, margin-desc
@@ -53,33 +75,169 @@ class Store {
     this.isAdmin = this.checkAdminAuth();
   }
 
+  generateSessionHash(pin) {
+    let hash = 0;
+    const salt = 'ayapa_b2b_wholesale_salt_2026';
+    const str = `${pin}:${salt}`;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return `sec_${Math.abs(hash).toString(36)}`;
+  }
+
+  getAdminLockoutStatus() {
+    try {
+      const lockoutUntilStr = safeStorage.getItem(SEC_KEYS.LOCKOUT_UNTIL);
+      if (lockoutUntilStr) {
+        const lockoutUntil = parseInt(lockoutUntilStr, 10);
+        const now = Date.now();
+        if (now < lockoutUntil) {
+          const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
+          return { isLocked: true, remainingSec, lockoutUntil };
+        } else {
+          safeStorage.removeItem(SEC_KEYS.LOCKOUT_UNTIL);
+        }
+      }
+    } catch (e) {}
+    return { isLocked: false, remainingSec: 0, lockoutUntil: 0 };
+  }
+
+  resetAdminLockout() {
+    safeStorage.removeItem(SEC_KEYS.FAILED_ATTEMPTS);
+    safeStorage.removeItem(SEC_KEYS.LOCKOUT_UNTIL);
+  }
+
+  resetOrderRateLimit() {
+    safeStorage.removeItem(SEC_KEYS.LAST_ORDER_TIME);
+  }
+
   checkAdminAuth() {
     try {
-      const session = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('ayapa_admin_logged') : null;
-      return session === 'true' || safeStorage.getItem('ayapa_admin_remember') === 'true';
+      const lockout = this.getAdminLockoutStatus();
+      if (lockout.isLocked) {
+        return false;
+      }
+
+      let sessionStr = null;
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStr = sessionStorage.getItem(SEC_KEYS.ADMIN_SESSION);
+      }
+      if (!sessionStr) {
+        sessionStr = safeStorage.getItem(SEC_KEYS.ADMIN_SESSION);
+      }
+      if (!sessionStr) return false;
+
+      const session = JSON.parse(sessionStr);
+      if (!session || !session.auth || !session.expiresAt || !session.token) {
+        return false;
+      }
+
+      if (Date.now() > session.expiresAt) {
+        this.logoutAdmin();
+        return false;
+      }
+
+      const validPin = this.settings.adminPin || '971400';
+      if (session.token !== this.generateSessionHash(validPin)) {
+        this.logoutAdmin();
+        return false;
+      }
+
+      return true;
     } catch (e) {
       return false;
     }
   }
 
   loginAdmin(pin) {
-    const validPin = this.settings.adminPin || '971400';
-    if (pin === validPin || pin === '971400') {
+    const lockout = this.getAdminLockoutStatus();
+    if (lockout.isLocked) {
+      this.lastLoginResult = {
+        success: false,
+        locked: true,
+        remainingSec: lockout.remainingSec,
+        message: `Security Lockout active. Too many failed attempts. Try again in ${lockout.remainingSec}s.`
+      };
+      return false;
+    }
+
+    const cleanPin = String(pin || '').trim();
+    const validPin = String(this.settings.adminPin || '971400').trim();
+
+    // Constant-time comparison
+    let match = cleanPin.length === validPin.length;
+    for (let i = 0; i < validPin.length; i++) {
+      match = match && (cleanPin.charCodeAt(i) === validPin.charCodeAt(i));
+    }
+
+    if (match) {
       this.isAdmin = true;
       try {
-        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('ayapa_admin_logged', 'true');
-        safeStorage.setItem('ayapa_admin_remember', 'true');
+        safeStorage.removeItem(SEC_KEYS.FAILED_ATTEMPTS);
+        safeStorage.removeItem(SEC_KEYS.LOCKOUT_UNTIL);
+
+        const sessionPayload = {
+          auth: true,
+          token: this.generateSessionHash(validPin),
+          expiresAt: Date.now() + 4 * 60 * 60 * 1000 // 4 hour session
+        };
+        const sessionStr = JSON.stringify(sessionPayload);
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem(SEC_KEYS.ADMIN_SESSION, sessionStr);
+        }
+        safeStorage.setItem(SEC_KEYS.ADMIN_SESSION, sessionStr);
       } catch (e) {}
+
+      this.lastLoginResult = { success: true };
       this.notify();
       return true;
+    } else {
+      let attempts = 0;
+      let locked = false;
+      let remainingSec = 0;
+      let msg = '';
+      try {
+        attempts = parseInt(safeStorage.getItem(SEC_KEYS.FAILED_ATTEMPTS) || '0', 10) + 1;
+        safeStorage.setItem(SEC_KEYS.FAILED_ATTEMPTS, String(attempts));
+
+        // Progressive lockout: 5 attempts = 5 min, 10 attempts = 30 min
+        if (attempts >= 10) {
+          const lockUntil = Date.now() + 30 * 60 * 1000;
+          safeStorage.setItem(SEC_KEYS.LOCKOUT_UNTIL, String(lockUntil));
+          locked = true;
+          remainingSec = 1800;
+          msg = 'Security lockout: Account locked for 30 minutes due to 10 failed PIN attempts.';
+        } else if (attempts >= 5) {
+          const lockUntil = Date.now() + 5 * 60 * 1000;
+          safeStorage.setItem(SEC_KEYS.LOCKOUT_UNTIL, String(lockUntil));
+          locked = true;
+          remainingSec = 300;
+          msg = 'Security lockout: Account locked for 5 minutes due to 5 failed PIN attempts.';
+        }
+      } catch (e) {}
+
+      const remainingAttempts = Math.max(0, 5 - (attempts % 5));
+      this.lastLoginResult = {
+        success: false,
+        locked,
+        remainingSec,
+        attemptsRemaining: remainingAttempts,
+        message: msg || `Incorrect PIN. ${remainingAttempts} attempt(s) remaining before security lockout.`
+      };
+      return false;
     }
-    return false;
   }
 
   logoutAdmin() {
     this.isAdmin = false;
     try {
-      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('ayapa_admin_logged');
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem(SEC_KEYS.ADMIN_SESSION);
+        sessionStorage.removeItem('ayapa_admin_logged');
+      }
+      safeStorage.removeItem(SEC_KEYS.ADMIN_SESSION);
       safeStorage.removeItem('ayapa_admin_remember');
     } catch (e) {}
     this.notify();
@@ -193,6 +351,7 @@ class Store {
   }
 
   saveSettings(settings) {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     this.settings = { ...this.settings, ...settings };
     try {
       safeStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(this.settings));
@@ -217,6 +376,8 @@ class Store {
     const product = this.products.find(p => p.id === productId);
     if (!product || !product.stock) return;
 
+    const safeDelta = typeof delta === 'number' && !isNaN(delta) ? Math.floor(delta) : 1;
+
     if (!this.cart[productId]) {
       this.cart[productId] = {
         productId,
@@ -225,9 +386,12 @@ class Store {
       };
     }
 
-    this.cart[productId].quantity = Math.max(0, this.cart[productId].quantity + delta);
-    if (this.cart[productId].quantity === 0) {
+    const currentQty = this.cart[productId].quantity;
+    const newQty = Math.min(MAX_ITEM_QUANTITY, Math.max(0, currentQty + safeDelta));
+    if (newQty === 0) {
       delete this.cart[productId];
+    } else {
+      this.cart[productId].quantity = newQty;
     }
     this.saveCart();
   }
@@ -237,10 +401,11 @@ class Store {
     if (isNaN(qty) || qty <= 0) {
       delete this.cart[productId];
     } else {
+      const safeQty = Math.min(MAX_ITEM_QUANTITY, Math.floor(qty));
       if (!this.cart[productId]) {
-        this.cart[productId] = { productId, quantity: qty, addedAt: Date.now() };
+        this.cart[productId] = { productId, quantity: safeQty, addedAt: Date.now() };
       } else {
-        this.cart[productId].quantity = qty;
+        this.cart[productId].quantity = safeQty;
       }
     }
     this.saveCart();
@@ -318,11 +483,68 @@ class Store {
       throw new Error('Your cart is empty');
     }
 
-    if (!checkoutData.mobileNumber || !checkoutData.shopName || !checkoutData.shopAddress) {
-      throw new Error('Please fill in required fields (Shop Name, Mobile, and Address)');
+    // 1. Anti-Bot Honeypot Check
+    if (checkoutData.honeypot && String(checkoutData.honeypot).trim().length > 0) {
+      throw new Error('Spam protection: Automated order submission rejected.');
     }
 
-    this.saveClient(checkoutData);
+    // 2. Order Rate Limiting (Anti-Spam 30-second cooldown)
+    const lastOrderTs = parseInt(safeStorage.getItem(SEC_KEYS.LAST_ORDER_TIME) || '0', 10);
+    const now = Date.now();
+    const timeSinceLastOrder = now - lastOrderTs;
+    if (timeSinceLastOrder < ORDER_COOLDOWN_MS) {
+      const waitSec = Math.ceil((ORDER_COOLDOWN_MS - timeSinceLastOrder) / 1000);
+      throw new Error(`Order rate limit: Please wait ${waitSec}s before submitting another wholesale order.`);
+    }
+
+    // 3. Wholesale Quantity & Value Caps
+    if (totals.totalItems > MAX_ORDER_ITEMS) {
+      throw new Error(`Bulk order limit exceeded: Maximum ${MAX_ORDER_ITEMS} items per order. Please contact AYAPA wholesale directly on 02072431119.`);
+    }
+    if (totals.totalIncVat > MAX_ORDER_AMOUNT) {
+      throw new Error(`Order value cap: Maximum order total is £${MAX_ORDER_AMOUNT.toLocaleString()}. For enterprise orders, please call 02072431119.`);
+    }
+
+    // 4. Client Data Validation & Sanitization
+    const rawShopName = String(checkoutData.shopName || '').trim();
+    const rawMobile = String(checkoutData.mobileNumber || '').trim();
+    const rawAddress = String(checkoutData.shopAddress || '').trim();
+    const rawEmail = String(checkoutData.email || '').trim();
+
+    if (!rawShopName || !rawMobile || !rawAddress || !rawEmail) {
+      throw new Error('Please fill in required fields (Shop Name, Mobile, Email, and Address)');
+    }
+
+    if (rawShopName.length < 3) {
+      throw new Error('Shop / Business Name must be at least 3 characters.');
+    }
+
+    if (rawAddress.length < 6) {
+      throw new Error('Shop delivery address must be at least 6 characters.');
+    }
+
+    const cleanPhone = rawMobile.replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+      throw new Error('Please enter a valid telephone or mobile number with at least 10 digits.');
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(rawEmail)) {
+      throw new Error('Please enter a valid business email address for invoice delivery.');
+    }
+
+    const sanitizedClient = {
+      shopName: escapeHtml(rawShopName),
+      contactName: escapeHtml(String(checkoutData.contactName || '').trim()),
+      mobileNumber: escapeHtml(rawMobile),
+      email: escapeHtml(rawEmail),
+      shopAddress: escapeHtml(rawAddress),
+      city: escapeHtml(String(checkoutData.city || '').trim()),
+      postcode: escapeHtml(String(checkoutData.postcode || '').trim()),
+      deliveryNotes: escapeHtml(String(checkoutData.deliveryNotes || '').trim())
+    };
+
+    this.saveClient(sanitizedClient);
 
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const orderId = `AYP-${new Date().getFullYear()}-${randomSuffix}`;
@@ -330,7 +552,7 @@ class Store {
     const newOrder = {
       orderId,
       createdAt: new Date().toISOString(),
-      client: { ...this.client, ...checkoutData },
+      client: { ...this.client, ...sanitizedClient },
       items: totals.items.map(i => ({
         code: i.product.code,
         name: i.product.name,
@@ -351,11 +573,14 @@ class Store {
       },
       status: 'Order Placed',
       paymentMethod: 'BACS / COD Pro-forma',
-      notes: checkoutData.deliveryNotes || ''
+      notes: sanitizedClient.deliveryNotes || ''
     };
 
     this.orders.unshift(newOrder);
     this.saveOrders();
+
+    // Record order timestamp to prevent rapid-fire spam
+    safeStorage.setItem(SEC_KEYS.LAST_ORDER_TIME, String(now));
 
     // Also persist in global store incoming orders list for Admin
     try {
@@ -369,6 +594,7 @@ class Store {
   }
 
   updateOrderStatus(orderId, newStatus) {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     const order = this.orders.find(o => o.orderId === orderId);
     if (order) {
       order.status = newStatus;
@@ -377,12 +603,14 @@ class Store {
   }
 
   deleteOrder(orderId) {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     this.orders = this.orders.filter(o => o.orderId !== orderId);
     this.saveOrders();
   }
 
   // --- Products Catalog Admin ---
   addProduct(productData) {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     // Generate clean ID from code or name
     const code = (productData.code || `AA-${Date.now().toString().slice(-4)}`).toUpperCase().trim();
     const id = code;
@@ -418,6 +646,7 @@ class Store {
   }
 
   updateProduct(id, updates) {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     const index = this.products.findIndex(p => p.id === id);
     if (index >= 0) {
       this.products[index] = { ...this.products[index], ...updates };
@@ -426,6 +655,7 @@ class Store {
   }
 
   deleteProduct(id) {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     this.products = this.products.filter(p => p.id !== id);
     this.saveProducts();
   }
@@ -439,6 +669,7 @@ class Store {
   }
 
   importCatalogCsv(csvText) {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
     if (lines.length < 2) throw new Error('CSV must have a header row and at least one product row');
 
@@ -496,6 +727,7 @@ class Store {
   }
 
   resetCatalog() {
+    if (!this.isAdmin) throw new Error('Unauthorized: AYAPA administrator privileges required.');
     this.products = [...INITIAL_PRODUCTS];
     this.saveProducts();
   }

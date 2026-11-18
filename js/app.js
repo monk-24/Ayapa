@@ -320,24 +320,91 @@ class AppController {
     const modal = document.getElementById('adminLoginModal');
     const input = document.getElementById('adminPinInput');
     const err = document.getElementById('adminPinError');
+    const lockoutNotice = document.getElementById('adminLockoutNotice');
+    const submitBtn = document.getElementById('adminPinSubmitBtn');
     if (modal) {
       if (input) input.value = '';
       if (err) err.style.display = 'none';
+
+      const lockout = this.store.getAdminLockoutStatus();
+      if (lockout.isLocked) {
+        if (lockoutNotice) lockoutNotice.style.display = 'block';
+        if (input) input.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+        this.startLockoutCountdown(lockout.remainingSec);
+      } else {
+        if (lockoutNotice) lockoutNotice.style.display = 'none';
+        if (input) input.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
+        setTimeout(() => input?.focus(), 150);
+      }
+
       this.openModal('adminLoginModal');
-      setTimeout(() => input?.focus(), 150);
     }
+  }
+
+  startLockoutCountdown(seconds) {
+    if (this._lockoutInterval) clearInterval(this._lockoutInterval);
+    let remaining = seconds;
+
+    const updateDisplay = () => {
+      const countdownEl = document.getElementById('adminLockoutCountdown');
+      if (countdownEl) {
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        countdownEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+    };
+
+    updateDisplay();
+
+    this._lockoutInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(this._lockoutInterval);
+        const lockoutNotice = document.getElementById('adminLockoutNotice');
+        const input = document.getElementById('adminPinInput');
+        const submitBtn = document.getElementById('adminPinSubmitBtn');
+        if (lockoutNotice) lockoutNotice.style.display = 'none';
+        if (input) {
+          input.disabled = false;
+          input.focus();
+        }
+        if (submitBtn) submitBtn.disabled = false;
+      } else {
+        updateDisplay();
+      }
+    }, 1000);
   }
 
   submitAdminLogin() {
     const input = document.getElementById('adminPinInput');
     const err = document.getElementById('adminPinError');
+    const lockoutNotice = document.getElementById('adminLockoutNotice');
+    const submitBtn = document.getElementById('adminPinSubmitBtn');
     const pin = input?.value.trim() || '';
 
-    if (this.store.loginAdmin(pin)) {
+    const success = this.store.loginAdmin(pin);
+    const res = this.store.lastLoginResult || {};
+    if (success) {
+      if (err) err.style.display = 'none';
+      if (lockoutNotice) lockoutNotice.style.display = 'none';
+      if (this._lockoutInterval) clearInterval(this._lockoutInterval);
       this.closeAllModals();
       this.switchView('admin');
     } else {
-      if (err) err.style.display = 'block';
+      if (res.locked) {
+        if (err) err.style.display = 'none';
+        if (lockoutNotice) lockoutNotice.style.display = 'block';
+        if (input) input.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+        this.startLockoutCountdown(res.remainingSec);
+      } else {
+        if (err) {
+          err.textContent = res.message || 'Incorrect PIN. Please try again.';
+          err.style.display = 'block';
+        }
+      }
     }
   }
 
@@ -667,6 +734,11 @@ class AppController {
             <label class="form-label">Delivery Notes / Specifics</label>
             <textarea id="deliveryNotes" class="form-textarea" rows="2" placeholder="e.g. Deliver between 10am-5pm, ring bell">${client.deliveryNotes || ''}</textarea>
           </div>
+
+          <!-- Security Honeypot Anti-Spam Field -->
+          <div class="visually-hidden-hp" aria-hidden="true">
+            <input type="text" id="businessFaxAudit" name="business_fax_audit" tabindex="-1" autocomplete="off" />
+          </div>
         </form>
 
         <div class="order-summary-box" id="checkoutMiniSummary" style="margin-top: 10px;">
@@ -675,6 +747,8 @@ class AppController {
             <span class="total-amount">£${totals.totalIncVat.toFixed(2)}</span>
           </div>
         </div>
+
+        <div id="checkoutSecurityError" style="display: none; background: var(--danger-bg); border: 1.5px solid var(--danger); border-radius: var(--radius-md); padding: 12px 14px; margin-top: 12px; font-size: 0.82rem; color: var(--danger); font-weight: 700; line-height: 1.4;"></div>
       `;
 
       footer.innerHTML = `
@@ -774,6 +848,11 @@ class AppController {
   }
 
   submitWholesaleOrder(preferredAction = 'whatsapp') {
+    if (this.isSubmittingOrder) return;
+
+    const errorBox = document.getElementById('checkoutSecurityError');
+    if (errorBox) errorBox.style.display = 'none';
+
     const shopName = document.getElementById('shopName')?.value.trim();
     const contactName = document.getElementById('contactName')?.value.trim();
     const mobileNumber = document.getElementById('mobileNumber')?.value.trim();
@@ -782,11 +861,26 @@ class AppController {
     const city = document.getElementById('city')?.value.trim();
     const postcode = document.getElementById('postcode')?.value.trim();
     const deliveryNotes = document.getElementById('deliveryNotes')?.value.trim();
+    const honeypot = document.getElementById('businessFaxAudit')?.value.trim();
 
-    if (!shopName || !mobileNumber || !shopAddress || !email) {
-      alert('Please fill in all required fields (Shop Name, Mobile, Email, and Address).');
+    // Honeypot spam trap
+    if (honeypot) {
+      console.warn('Spam order blocked via honeypot');
       return;
     }
+
+    if (!shopName || !mobileNumber || !shopAddress || !email) {
+      const msg = 'Please fill in all required fields (Shop Name, Mobile, Email, and Address).';
+      if (errorBox) {
+        errorBox.textContent = msg;
+        errorBox.style.display = 'block';
+      } else {
+        alert(msg);
+      }
+      return;
+    }
+
+    this.isSubmittingOrder = true;
 
     try {
       const order = this.store.submitOrder({
@@ -797,7 +891,8 @@ class AppController {
         shopAddress,
         city,
         postcode,
-        deliveryNotes
+        deliveryNotes,
+        honeypot
       });
 
       this.closeAllModals();
@@ -827,7 +922,15 @@ class AppController {
       // Also refresh the My Orders list
       this.renderOrdersView();
     } catch (err) {
-      alert(err.message || 'Failed to submit order');
+      const msg = err.message || 'Failed to submit wholesale order';
+      if (errorBox) {
+        errorBox.textContent = msg;
+        errorBox.style.display = 'block';
+      } else {
+        alert(msg);
+      }
+    } finally {
+      this.isSubmittingOrder = false;
     }
   }
 
@@ -1203,6 +1306,21 @@ class AppController {
     if (!container) return;
 
     if (!this.store.isAdmin) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 60px 20px; max-width: 440px; margin: 0 auto;">
+          <div style="width: 56px; height: 56px; background: var(--bg-card); border: 2px solid var(--accent-gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--accent-gold);">
+            <svg style="width: 28px; height: 28px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px;">Restricted Staff Portal</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">This portal is strictly restricted to AYAPA inventory administrators. Please authenticate with your staff PIN to access catalog and order controls.</p>
+          <button class="btn-primary" onclick="window.app.openAdminLoginModal()">
+            <span>Enter Staff PIN</span>
+          </button>
+        </div>
+      `;
       this.openAdminLoginModal();
       return;
     }
@@ -1621,6 +1739,10 @@ class AppController {
   }
 
   handleSaveSettings() {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     const whatsappNumber = document.getElementById('settingWhatsapp')?.value.trim();
     const companyName = document.getElementById('settingCompanyName')?.value.trim();
     const bankName = document.getElementById('settingBankName')?.value.trim();
@@ -1652,6 +1774,10 @@ class AppController {
   }
 
   openEditProductModal(productId) {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     const product = this.store.products.find(p => p.id === productId);
     if (!product) return;
 
@@ -1734,6 +1860,10 @@ class AppController {
   }
 
   handleSaveEditProduct(productId) {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     const name = document.getElementById('editName')?.value.trim();
     const priceExVat = parseFloat(document.getElementById('editPriceEx')?.value) || 0;
     const rrp = parseFloat(document.getElementById('editRrp')?.value) || (priceExVat * 2.5);
@@ -1758,6 +1888,10 @@ class AppController {
   }
 
   deleteProductConfirm(productId) {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     if (confirm(`Are you sure you want to remove product ${productId} from the catalog?`)) {
       this.store.deleteProduct(productId);
       this.renderAdminView();
@@ -1766,6 +1900,10 @@ class AppController {
   }
 
   exportCatalogCsv() {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     const csv = this.store.exportCatalogCsv();
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1776,6 +1914,10 @@ class AppController {
   }
 
   handleCsvImport(e) {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     const file = e.target.files[0];
     if (!file) return;
 
@@ -1881,6 +2023,10 @@ class AppController {
   }
 
   handleAdminAddProduct() {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     const code = document.getElementById('adminCode')?.value.trim();
     const name = document.getElementById('adminName')?.value.trim();
     const category = document.getElementById('adminCategory')?.value;
@@ -1915,6 +2061,10 @@ class AppController {
   }
 
   toggleProductStock(productId) {
+    if (!this.store.isAdmin) {
+      this.openAdminLoginModal();
+      return;
+    }
     const prod = this.store.products.find(p => p.id === productId);
     if (prod) {
       this.store.updateProduct(productId, { stock: !prod.stock });
