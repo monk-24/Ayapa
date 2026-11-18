@@ -2,6 +2,10 @@
 
 A high-performance, mobile-first wholesale ordering portal specifically engineered for **retail shop owners and repair stores** (optimized for 90%+ mobile traffic).
 
+🌐 **Live Deployment:** **[https://monk-24.github.io/Ayapa/](https://monk-24.github.io/Ayapa/)**  
+🔐 **Admin Portal PIN:** **`971400`**  
+📲 **AYAPA EPOS WhatsApp:** **`+44 7767 935049`**
+
 ![AYAPA Wholesale](products/AA4512.jpg)
 
 ---
@@ -9,15 +13,44 @@ A high-performance, mobile-first wholesale ordering portal specifically engineer
 ## 🌟 Key Features
 
 ### 1. Mobile-First Wholesale Ergonomics (90% Mobile Users)
-- **Fast 2-Column Touch Grid**: Displays crisp product packaging photos, SKU badges, quality tags, and stock status.
+- **Fast 2-Column Touch Grid**: Displays crisp product packaging photos, SKU badges, quality tags, and live stock status.
 - **B2B Margin Economics**:
   - Wholesale Unit Price (Excl. VAT) & Price (Inc. VAT)
   - Recommended Retail Price (**RRP**)
   - Instant **Shop Profit & Margin % badge** (e.g., *Buy at £1.84, Sell at £7.99 → +£5.78 Profit / 72% Margin*).
 - **Wholesale Quick-Pack Adders**: `+1`, `+5`, `+10` buttons for instant wholesale batch ordering.
+- **Real-Time Cart Synchronization**: Steppers and inputs dynamically update unit counts, subtotal, 20% VAT, total inc VAT, and retail margin return in real-time.
 - **Sticky Bottom Floating Cart**: Always shows total units, total payable, and calculated potential shop resale return.
-- **Bottom Navigation Bar**: Native app-like tabs for **Shop**, **Order Cart**, **My Orders**, and **Manager**.
+- **Bottom Navigation Bar**: Native app-like tabs for **Shop**, **Order Cart**, **My Orders**, and **Staff Manager**.
 - **Interactive Lightbox & Profit Calculator**: Tap any product to view high-resolution imagery, full technical specifications (power, connectors, length, materials), and simulate profit on custom order quantities (10, 25, 50, 100 units).
+
+---
+
+### 2. Multi-Channel Order & Invoice Dispatch
+- **1-Click WhatsApp Order to AYAPA EPOS (+44 7767 935049)**:
+  - Formats the complete itemized purchase order (SKU, product descriptions, quantities, unit prices, subtotal, 20% UK VAT, total payable, client store details, and delivery notes).
+- **1-Click Customer Invoice Copy to WhatsApp**:
+  - Customer can send the complete invoice slip directly to their own WhatsApp mobile number for their records.
+- **Automated Customer Email Invoice**:
+  - Opens customer's email client pre-filled with subject and a formatted pro-forma invoice breakdown with BACS transfer details.
+- **A4 Pro-Forma Invoice & PDF Print**:
+  - Clean, official printable invoice with AYAPA company details, Barclays Bank payment details, itemized table, and tax breakdown.
+
+---
+
+### 3. Admin & Inventory Management (PIN: 971400)
+- **Protected by Staff PIN (`971400`)**: Restricted to AYAPA staff and management.
+- **1-Click Stock Status Toggle**:
+  - Instant toggle button (`In Stock` / `Out of Stock`) on every product row.
+  - Filter catalog by *All*, *In Stock*, or *Out of Stock*.
+  - When marked Out of Stock, storefront immediately reflects the badge and disables addition to cart.
+- **Product & Image Manager ("Where image you can add")**:
+  - Drag-and-drop or tap to upload product packaging photos from file or smartphone camera.
+  - Edit existing product prices (Ex VAT, Inc VAT, RRP), names, and quality badges.
+  - Add new products with live preview.
+- **CSV & JSON Import/Export**:
+  - Bulk update catalog pricing and stock from CSV.
+  - Export incoming orders and products for accounting and stocktaking.
 
 ---
 

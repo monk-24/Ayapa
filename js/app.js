@@ -608,12 +608,12 @@ class AppController {
       this.closeAllModals();
 
       if (preferredAction === 'whatsapp') {
-        const waLink = this.store.generateWhatsAppLink(order);
+        const waLink = this.store.generateWhatsAppLink(order, 'ayapa');
         window.open(waLink, '_blank');
       }
 
       // Automatically show confirmation & invoice modal
-      this.openOrderConfirmationModal(order);
+      this.openOrderConfirmationModal(order, preferredAction);
 
       // Also refresh the My Orders list
       this.renderOrdersView();
@@ -622,24 +622,17 @@ class AppController {
     }
   }
 
-  openOrderConfirmationModal(order) {
+  openOrderConfirmationModal(order, sourceAction = '') {
     const modal = document.getElementById('confirmationModal');
     const body = document.getElementById('confirmationModalBody');
     if (!modal || !body) return;
 
-    const waLink = this.store.generateWhatsAppLink(order);
-    const emailSubject = encodeURIComponent(`AYAPA Wholesale Order Invoice: ${order.orderId} - ${order.client.shopName}`);
-    const emailBody = encodeURIComponent(
-      `Hello ${order.client.shopName},\n\n` +
-      `Thank you for your wholesale order with AYAPA!\n` +
-      `Order Reference: ${order.orderId}\n` +
-      `Total Units: ${order.totals.totalItems}\n` +
-      `Total Payable Inc. VAT: £${order.totals.totalIncVat.toFixed(2)}\n\n` +
-      `Delivery Address: ${order.client.shopAddress}, ${order.client.city || ''} ${order.client.postcode || ''}\n\n` +
-      `Please find our BACS transfer details in the attached pro-forma or invoice. Contact us on 02072431119 for any queries.\n\n` +
-      `AYAPA Wholesale UK`
-    );
-    const mailtoLink = `mailto:${order.client.email}?subject=${emailSubject}&body=${emailBody}`;
+    const waAyapaLink = this.store.generateWhatsAppLink(order, 'ayapa');
+    const waCustomerLink = this.store.generateWhatsAppLink(order, 'customer');
+    const emailData = this.store.generateEmailInvoice(order);
+
+    const clientPhone = order.client.mobileNumber || '';
+    const clientEmail = order.client.email || '';
 
     body.innerHTML = `
       <div style="text-align: center; margin-bottom: 20px;">
@@ -648,7 +641,7 @@ class AppController {
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
-        <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary); margin-bottom: 4px;">Wholesale Order Received!</h3>
+        <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary); margin-bottom: 4px;">Wholesale Order Confirmed!</h3>
         <p style="font-size: 0.85rem; color: var(--text-secondary);">
           Order Reference: <strong style="color: var(--accent-gold);">${order.orderId}</strong>
         </p>
@@ -657,31 +650,41 @@ class AppController {
         </p>
       </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
-        <a href="${waLink}" target="_blank" class="btn-whatsapp" style="padding: 10px 14px; font-size: 0.85rem;">
+      <!-- Action Dispatch Grid -->
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;">
+        <a href="${waAyapaLink}" target="_blank" class="btn-whatsapp" style="padding: 12px 14px; font-size: 0.88rem;">
           <svg style="width: 18px; height: 18px; fill: currentColor;" viewBox="0 0 24 24">
             <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.634.073-1.04-.059-.281-.092-.614-.22-1.03-.399-1.802-.78-2.97-2.6-3.06-2.72-.09-.12-.733-.974-.733-1.86 0-.885.469-1.32.635-1.499.167-.179.366-.224.488-.224.122 0 .243.002.35.007.113.005.263-.042.412.316.155.375.529 1.292.575 1.386.046.094.077.205.015.328-.063.123-.094.2-.187.31-.093.11-.196.245-.28.329-.094.094-.192.197-.082.385.11.187.489.808 1.05 1.307.722.641 1.33.84 1.518.934.188.093.298.079.408-.047.11-.125.469-.546.594-.733.125-.188.25-.156.422-.094.172.062 1.088.513 1.275.607.187.094.312.14.358.219.046.078.046.453-.098.858z"/>
           </svg>
-          <span>Send via WhatsApp</span>
+          <span>📲 Submit Order to AYAPA (+44 7767 935049)</span>
         </a>
 
-        <a href="${mailtoLink}" class="btn-secondary" style="padding: 10px 14px; font-size: 0.85rem; text-decoration: none;">
-          <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
+        <a href="${waCustomerLink}" target="_blank" class="btn-whatsapp-outline" style="padding: 12px 14px; font-size: 0.88rem;">
+          <svg style="width: 18px; height: 18px; fill: currentColor;" viewBox="0 0 24 24">
+            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.634.073-1.04-.059-.281-.092-.614-.22-1.03-.399-1.802-.78-2.97-2.6-3.06-2.72-.09-.12-.733-.974-.733-1.86 0-.885.469-1.32.635-1.499.167-.179.366-.224.488-.224.122 0 .243.002.35.007.113.005.263-.042.412.316.155.375.529 1.292.575 1.386.046.094.077.205.015.328-.063.123-.094.2-.187.31-.093.11-.196.245-.28.329-.094.094-.192.197-.082.385.11.187.489.808 1.05 1.307.722.641 1.33.84 1.518.934.188.093.298.079.408-.047.11-.125.469-.546.594-.733.125-.188.25-.156.422-.094.172.062 1.088.513 1.275.607.187.094.312.14.358.219.046.078.046.453-.098.858z"/>
           </svg>
-          <span>Email Invoice</span>
+          <span>📲 Send Invoice to My WhatsApp (${clientPhone || 'Client Phone'})</span>
         </a>
-      </div>
 
-      <button class="btn-secondary" style="margin-bottom: 16px;" onclick="window.print()">
-        <svg style="width: 18px; height: 18px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <polyline points="6 9 6 2 18 2 18 9"></polyline>
-          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-          <rect x="6" y="14" width="12" height="8"></rect>
-        </svg>
-        <span>Print / Save PDF Invoice</span>
-      </button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <a href="${emailData.mailto}" class="btn-secondary" style="padding: 10px 12px; font-size: 0.82rem; text-decoration: none;">
+            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+            <span>📧 Email Invoice</span>
+          </a>
+
+          <button class="btn-secondary" style="padding: 10px 12px; font-size: 0.82rem;" onclick="window.print()">
+            <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span>🖨️ PDF Invoice</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Printable Pro-Forma Invoice Container -->
       <div class="invoice-container">
@@ -689,7 +692,7 @@ class AppController {
           <div>
             <div class="invoice-logo-title">AYAPA WHOLESALE</div>
             <div style="font-size: 0.75rem; color: #6b7280;">Mobile Phone Accessories UK & B2B Distribution</div>
-            <div style="font-size: 0.75rem; color: #6b7280;">Contact / WhatsApp: 02072431119</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">EPOS WhatsApp: +44 7767 935049 • info@ayapashop.com</div>
           </div>
           <div class="invoice-meta">
             <div style="font-weight: 800; font-size: 1rem; color: #111827;">PRO-FORMA INVOICE</div>
@@ -711,10 +714,10 @@ class AppController {
           <div>
             <div style="font-weight: 700; color: #374151; font-size: 0.75rem; text-transform: uppercase;">Bank Transfer Details:</div>
             <div style="font-size: 0.8rem; background: #f3f4f6; padding: 8px; border-radius: 6px; margin-top: 4px;">
-              <div>Bank: <strong>Barclays Bank UK</strong></div>
-              <div>Account Name: <strong>AYAPA WHOLESALE LTD</strong></div>
-              <div>Sort Code: <strong>20-00-00</strong> (Sample)</div>
-              <div>Account No: <strong>83920192</strong></div>
+              <div>Bank: <strong>${this.store.settings.bankName || 'Barclays Bank UK'}</strong></div>
+              <div>Account Name: <strong>${this.store.settings.accountName || 'AYAPA WHOLESALE LTD'}</strong></div>
+              <div>Sort Code: <strong>${this.store.settings.sortCode || '20-00-00'}</strong></div>
+              <div>Account No: <strong>${this.store.settings.accountNumber || '83920192'}</strong></div>
               <div>Payment Reference: <strong>${order.orderId}</strong></div>
             </div>
           </div>
@@ -1148,19 +1151,39 @@ class AppController {
 
   renderAdminProductsSubTab(products) {
     const adminSearch = (this.adminProductSearchQuery || '').toLowerCase().trim();
-    const filtered = adminSearch 
-      ? products.filter(p => p.code.toLowerCase().includes(adminSearch) || p.name.toLowerCase().includes(adminSearch) || p.category.toLowerCase().includes(adminSearch))
-      : products;
+    const stockFilter = this.adminStockFilter || 'all'; // 'all', 'instock', 'outstock'
+
+    let filtered = products;
+
+    if (stockFilter === 'instock') {
+      filtered = filtered.filter(p => p.stock);
+    } else if (stockFilter === 'outstock') {
+      filtered = filtered.filter(p => !p.stock);
+    }
+
+    if (adminSearch) {
+      filtered = filtered.filter(p => 
+        p.code.toLowerCase().includes(adminSearch) || 
+        p.name.toLowerCase().includes(adminSearch) || 
+        p.category.toLowerCase().includes(adminSearch)
+      );
+    }
+
+    const inStockCount = products.filter(p => p.stock).length;
+    const outStockCount = products.filter(p => !p.stock).length;
 
     return `
       <!-- Bulk Actions Bar -->
       <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; justify-content: space-between; align-items: center;">
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" onclick="window.app.exportCatalogCsv()">
-            📥 Export Catalog CSV (Excel)
+            📥 Export Catalog CSV
           </button>
           <button class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" onclick="document.getElementById('csvFileInput').click()">
             📤 Bulk Update from CSV
+          </button>
+          <button class="btn-secondary" style="width: auto; padding: 8px 14px; font-size: 0.8rem;" onclick="window.app.exportCatalogJson()">
+            📥 Export JSON
           </button>
           <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="window.app.handleCsvImport(event)" />
         </div>
@@ -1169,8 +1192,24 @@ class AppController {
         </button>
       </div>
 
-      <!-- Admin Product Quick Search -->
-      <div style="margin-bottom: 14px;">
+      <!-- Quick Filter & Search Bar -->
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
+        <!-- Stock Filter Chips -->
+        <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;">
+          <button class="category-chip ${stockFilter === 'all' ? 'active' : ''}" onclick="window.app.setAdminStockFilter('all')">
+            <span>All Products</span>
+            <span class="count">${products.length}</span>
+          </button>
+          <button class="category-chip ${stockFilter === 'instock' ? 'active' : ''}" onclick="window.app.setAdminStockFilter('instock')">
+            <span>In Stock</span>
+            <span class="count" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">${inStockCount}</span>
+          </button>
+          <button class="category-chip ${stockFilter === 'outstock' ? 'active' : ''}" onclick="window.app.setAdminStockFilter('outstock')">
+            <span>Out of Stock</span>
+            <span class="count" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">${outStockCount}</span>
+          </button>
+        </div>
+
         <input type="text" class="form-input" placeholder="Search catalog by SKU (e.g. AA4512) or title..." value="${this.adminProductSearchQuery || ''}" oninput="window.app.handleAdminProductSearch(this.value)" />
       </div>
 
@@ -1178,13 +1217,17 @@ class AppController {
       <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--text-primary);">
-            Products List (${filtered.length} of ${products.length})
+            Inventory List (${filtered.length} Items)
           </h3>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">Click "Edit" to modify price/image, or tap stock badge</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">1-click toggle stock status below</span>
         </div>
 
         <div style="max-height: 520px; overflow-y: auto;">
-          ${filtered.map(p => `
+          ${filtered.length === 0 ? `
+            <div style="text-align: center; padding: 32px 0; color: var(--text-muted); font-size: 0.85rem;">
+              No products matching criteria
+            </div>
+          ` : filtered.map(p => `
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); font-size: 0.82rem; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
                 <img src="${p.image}" style="width: 42px; height: 42px; border-radius: 6px; object-fit: contain; background: #000; flex-shrink: 0;" onerror="this.src='https://placehold.co/42x42/171922/f59e0b?text=${p.code}'" />
@@ -1199,8 +1242,8 @@ class AppController {
               </div>
 
               <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                <button style="background: ${p.stock ? 'var(--success-bg)' : 'var(--danger-bg)'}; color: ${p.stock ? 'var(--success)' : 'var(--danger)'}; border: 1px solid ${p.stock ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}; font-size: 0.72rem; font-weight: 700; padding: 4px 8px; border-radius: 4px; cursor: pointer;" onclick="window.app.toggleProductStock('${p.id}')">
-                  ${p.stock ? 'In Stock' : 'Out of Stock'}
+                <button style="background: ${p.stock ? 'var(--success-bg)' : 'var(--danger-bg)'}; color: ${p.stock ? 'var(--success)' : 'var(--danger)'}; border: 1px solid ${p.stock ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}; font-size: 0.72rem; font-weight: 800; padding: 5px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;" onclick="window.app.toggleProductStock('${p.id}')" title="Click to mark ${p.stock ? 'Out of Stock' : 'In Stock'}">
+                  ${p.stock ? '✓ In Stock' : '✕ Out of Stock'}
                 </button>
                 <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.72rem; width: auto;" onclick="window.app.openEditProductModal('${p.id}')">
                   ✏️ Edit
@@ -1291,6 +1334,11 @@ class AppController {
     `;
   }
 
+  setAdminStockFilter(filter) {
+    this.adminStockFilter = filter;
+    this.renderAdminView();
+  }
+
   renderAdminSettingsSubTab() {
     const s = this.store.settings;
 
@@ -1302,8 +1350,8 @@ class AppController {
         <form onsubmit="event.preventDefault(); window.app.handleSaveSettings();">
           <div class="form-group">
             <label class="form-label">AYAPA WhatsApp Number (Where Orders are Sent) <span class="required">*</span></label>
-            <input type="text" id="settingWhatsapp" class="form-input" value="${s.whatsappNumber || '442072431119'}" placeholder="e.g. 447123456789 or 442072431119" required />
-            <span class="form-help">Country code included without + sign (e.g. 44 for UK)</span>
+            <input type="text" id="settingWhatsapp" class="form-input" value="${s.whatsappNumber || '447767935049'}" placeholder="e.g. 447767935049" required />
+            <span class="form-help">Country code included without + sign (e.g. 447767935049 for UK AYAPA EPOS)</span>
           </div>
 
           <div class="form-group">
@@ -1341,8 +1389,8 @@ class AppController {
             <h4 style="font-size: 0.85rem; font-weight: 800; color: var(--accent-gold); margin-bottom: 8px;">Admin Security</h4>
             <div class="form-group">
               <label class="form-label">Staff Login PIN Code</label>
-              <input type="password" id="settingAdminPin" class="form-input" value="${s.adminPin || '1234'}" placeholder="e.g. 1234" />
-              <span class="form-help">PIN used to unlock this Admin panel</span>
+              <input type="password" id="settingAdminPin" class="form-input" value="${s.adminPin || '971400'}" placeholder="e.g. 971400" />
+              <span class="form-help">PIN used to unlock this Admin panel (Default: 971400)</span>
             </div>
           </div>
 
@@ -1364,13 +1412,13 @@ class AppController {
     const adminPin = document.getElementById('settingAdminPin')?.value.trim();
 
     this.store.saveSettings({
-      whatsappNumber,
+      whatsappNumber: whatsappNumber || '447767935049',
       companyName,
       bankName,
       accountName,
       sortCode,
       accountNumber,
-      adminPin: adminPin || '1234'
+      adminPin: adminPin || '971400'
     });
 
     alert('Settings updated successfully!');
@@ -1552,116 +1600,6 @@ class AppController {
     a.href = url;
     a.download = `ayapa_orders_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
-  }
-
-  renderAdminProductsSubTab(products) {
-    return `
-      <!-- Add New Product Form Card -->
-      <div style="background: var(--bg-card); border: 1.5px solid var(--accent-gold); border-radius: var(--radius-xl); padding: 18px; margin-bottom: 24px;">
-        <h3 style="font-size: 1.05rem; font-weight: 800; color: var(--accent-gold); margin-bottom: 12px;">
-          ➕ Add New Product (with Photo Upload)
-        </h3>
-
-        <form id="adminAddProductForm" onsubmit="event.preventDefault(); window.app.handleAdminAddProduct();">
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label">Product SKU / Code <span class="required">*</span></label>
-              <input type="text" id="adminCode" class="form-input" placeholder="e.g. AA4789" required />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Category <span class="required">*</span></label>
-              <select id="adminCategory" class="form-select">
-                ${CATEGORIES.filter(c => c !== 'All').map(c => `<option value="${c}">${c}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Product Name & Description <span class="required">*</span></label>
-            <input type="text" id="adminName" class="form-input" placeholder="e.g. 100W PD DUAL TYPE-C FAST CHARGER" required />
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label">Wholesale Price (Excl. VAT) £ <span class="required">*</span></label>
-              <input type="number" step="0.01" id="adminPriceEx" class="form-input" placeholder="e.g. 3.49" oninput="window.app.autoCalcPrices()" required />
-            </div>
-            <div class="form-group">
-              <label class="form-label">RRP (Recommended Retail) £ <span class="required">*</span></label>
-              <input type="number" step="0.01" id="adminRrp" class="form-input" placeholder="e.g. 9.99" required />
-            </div>
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label">Quality Badge</label>
-              <input type="text" id="adminQuality" class="form-input" placeholder="e.g. Premium 100W GaN" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Brand</label>
-              <input type="text" id="adminBrand" class="form-input" value="AYAPA" />
-            </div>
-          </div>
-
-          <!-- Image Upload / Drop Area -->
-          <div class="form-group">
-            <label class="form-label">Product Image <span class="required">*</span></label>
-            <div class="image-drop-area" id="adminImageDropArea" onclick="document.getElementById('adminFileInput').click()">
-              <input type="file" id="adminFileInput" accept="image/*" style="display: none;" onchange="window.app.handleAdminImageSelect(event)" />
-              <img id="adminImagePreview" class="image-drop-preview" src="products/AA4512.jpg" style="display: none;" />
-              <div id="adminDropPlaceholder">
-                <svg style="width: 36px; height: 36px; margin: 0 auto 8px; stroke: var(--accent-gold); fill: none; stroke-width: 1.5;" viewBox="0 0 24 24">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-                <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-bottom: 2px;">
-                  Tap to upload image or take photo with phone
-                </div>
-                <div style="font-size: 0.72rem; color: var(--text-muted);">
-                  Supports JPG, PNG, WebP
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" class="btn-primary" style="margin-top: 10px;">
-            <span>Save Product to Catalog</span>
-          </button>
-        </form>
-      </div>
-
-      <!-- Quick Catalog Summary & Actions -->
-      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="font-size: 0.95rem; font-weight: 800; color: var(--text-primary);">
-            Catalog Inventory (${products.length} Items)
-          </h3>
-          <button class="btn-secondary" style="padding: 6px 12px; font-size: 0.78rem; width: auto;" onclick="window.app.exportCatalogJson()">
-            📥 Export Catalog JSON
-          </button>
-        </div>
-
-        <div style="max-height: 400px; overflow-y: auto;">
-          ${products.map(p => `
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-size: 0.8rem;">
-              <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
-                <img src="${p.image}" style="width: 34px; height: 34px; border-radius: 4px; object-fit: contain; background: #000;" onerror="this.src='https://placehold.co/40x40/171922/f59e0b?text=${p.code}'" />
-                <div style="min-width: 0; flex: 1;">
-                  <div style="font-weight: 700; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${p.code} - ${p.name}</div>
-                  <div style="font-size: 0.72rem; color: var(--text-muted);">£${p.priceExVat.toFixed(2)} + VAT • RRP £${p.rrp.toFixed(2)}</div>
-                </div>
-              </div>
-              <div style="display: flex; align-items: center; gap: 6px; margin-left: 10px;">
-                <button style="background: ${p.stock ? 'var(--success-bg)' : 'var(--danger-bg)'}; color: ${p.stock ? 'var(--success)' : 'var(--danger)'}; border: none; font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; cursor: pointer;" onclick="window.app.toggleProductStock('${p.id}')">
-                  ${p.stock ? 'In Stock' : 'Out of Stock'}
-                </button>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
   }
 
   setupAdminImageDrop() {

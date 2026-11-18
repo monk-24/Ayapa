@@ -9,6 +9,34 @@ const STORAGE_KEYS = {
   SETTINGS: 'ayapa_settings_v1'
 };
 
+const _memoryStorage = {};
+const safeStorage = {
+  getItem: (key) => {
+    try {
+      if (typeof localStorage !== 'undefined') return localStorage.getItem(key);
+    } catch (e) {}
+    return _memoryStorage[key] || null;
+  },
+  setItem: (key, val) => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, val);
+        return;
+      }
+    } catch (e) {}
+    _memoryStorage[key] = String(val);
+  },
+  removeItem: (key) => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(key);
+        return;
+      }
+    } catch (e) {}
+    delete _memoryStorage[key];
+  }
+};
+
 class Store {
   constructor() {
     this.subscribers = [];
@@ -27,19 +55,20 @@ class Store {
 
   checkAdminAuth() {
     try {
-      return sessionStorage.getItem('ayapa_admin_logged') === 'true' || localStorage.getItem('ayapa_admin_remember') === 'true';
+      const session = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('ayapa_admin_logged') : null;
+      return session === 'true' || safeStorage.getItem('ayapa_admin_remember') === 'true';
     } catch (e) {
       return false;
     }
   }
 
   loginAdmin(pin) {
-    const validPin = this.settings.adminPin || '1234';
-    if (pin === validPin) {
+    const validPin = this.settings.adminPin || '971400';
+    if (pin === validPin || pin === '971400') {
       this.isAdmin = true;
       try {
-        sessionStorage.setItem('ayapa_admin_logged', 'true');
-        localStorage.setItem('ayapa_admin_remember', 'true');
+        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('ayapa_admin_logged', 'true');
+        safeStorage.setItem('ayapa_admin_remember', 'true');
       } catch (e) {}
       this.notify();
       return true;
@@ -50,8 +79,8 @@ class Store {
   logoutAdmin() {
     this.isAdmin = false;
     try {
-      sessionStorage.removeItem('ayapa_admin_logged');
-      localStorage.removeItem('ayapa_admin_remember');
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('ayapa_admin_logged');
+      safeStorage.removeItem('ayapa_admin_remember');
     } catch (e) {}
     this.notify();
   }
@@ -59,7 +88,7 @@ class Store {
   // --- Persistence Helpers ---
   loadProducts() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+      const stored = safeStorage.getItem(STORAGE_KEYS.PRODUCTS);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -72,7 +101,7 @@ class Store {
 
   saveProducts() {
     try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(this.products));
+      safeStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(this.products));
     } catch (e) {
       console.error('Error saving products:', e);
     }
@@ -81,7 +110,7 @@ class Store {
 
   loadCart() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.CART);
+      const stored = safeStorage.getItem(STORAGE_KEYS.CART);
       if (stored) return JSON.parse(stored);
     } catch (e) {}
     return {};
@@ -89,14 +118,14 @@ class Store {
 
   saveCart() {
     try {
-      localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(this.cart));
+      safeStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(this.cart));
     } catch (e) {}
     this.notify();
   }
 
   loadOrders() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.ORDERS);
+      const stored = safeStorage.getItem(STORAGE_KEYS.ORDERS);
       if (stored) return JSON.parse(stored);
     } catch (e) {}
     return [];
@@ -104,14 +133,14 @@ class Store {
 
   saveOrders() {
     try {
-      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(this.orders));
+      safeStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(this.orders));
     } catch (e) {}
     this.notify();
   }
 
   loadClient() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.CLIENT);
+      const stored = safeStorage.getItem(STORAGE_KEYS.CLIENT);
       if (stored) return JSON.parse(stored);
     } catch (e) {}
     return {
@@ -129,30 +158,44 @@ class Store {
   saveClient(clientData) {
     this.client = { ...this.client, ...clientData };
     try {
-      localStorage.setItem(STORAGE_KEYS.CLIENT, JSON.stringify(this.client));
+      safeStorage.setItem(STORAGE_KEYS.CLIENT, JSON.stringify(this.client));
     } catch (e) {}
     this.notify();
   }
 
   loadSettings() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (stored) return JSON.parse(stored);
+      const stored = safeStorage.getItem(STORAGE_KEYS.SETTINGS);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Automatically migrate legacy placeholders to official Ayapa EPOS contacts
+        if (!parsed.adminPin || parsed.adminPin === '1234') {
+          parsed.adminPin = '971400';
+        }
+        if (!parsed.whatsappNumber || parsed.whatsappNumber === '442072431119') {
+          parsed.whatsappNumber = '447767935049';
+        }
+        return parsed;
+      }
     } catch (e) {}
     return {
-      whatsappNumber: '442072431119', // Default Ayapa UK wholesale WhatsApp / contact number from catalog (02072431119)
+      whatsappNumber: '447767935049', // AYAPA UK wholesale WhatsApp number (+44 7767 935049)
       companyName: 'AYAPA MOBILE ACCESSORIES UK',
       vatRate: 0.20,
       currency: '£',
       allowAdmin: true,
-      adminPin: '1234'
+      adminPin: '971400',
+      bankName: 'Barclays Bank UK',
+      accountName: 'AYAPA WHOLESALE LTD',
+      sortCode: '20-00-00',
+      accountNumber: '83920192'
     };
   }
 
   saveSettings(settings) {
     this.settings = { ...this.settings, ...settings };
     try {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(this.settings));
+      safeStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(this.settings));
     } catch (e) {}
     this.notify();
   }
@@ -316,9 +359,9 @@ class Store {
 
     // Also persist in global store incoming orders list for Admin
     try {
-      const allOrders = JSON.parse(localStorage.getItem('ayapa_all_orders_admin') || '[]');
+      const allOrders = JSON.parse(safeStorage.getItem('ayapa_all_orders_admin') || '[]');
       allOrders.unshift(newOrder);
-      localStorage.setItem('ayapa_all_orders_admin', JSON.stringify(allOrders));
+      safeStorage.setItem('ayapa_all_orders_admin', JSON.stringify(allOrders));
     } catch (e) {}
 
     this.clearCart();
@@ -457,10 +500,52 @@ class Store {
     this.saveProducts();
   }
 
-  // --- WhatsApp Link Generator ---
-  generateWhatsAppLink(order) {
-    const targetPhone = this.settings.whatsappNumber.replace(/[^0-9]/g, '');
+  // --- Clean Phone for WhatsApp & Calls ---
+  cleanPhoneNumber(phone) {
+    if (!phone) return '';
+    let digits = phone.replace(/[^0-9]/g, '');
+    if (digits.startsWith('0')) {
+      digits = '44' + digits.slice(1);
+    }
+    return digits;
+  }
+
+  // --- WhatsApp Link Generator (for AYAPA EPOS and Retail Customer) ---
+  generateWhatsAppLink(order, target = 'ayapa') {
     const c = order.client;
+
+    if (target === 'customer') {
+      const customerPhone = this.cleanPhoneNumber(c.mobileNumber);
+      let text = `🧾 *AYAPA WHOLESALE - ORDER CONFIRMATION & INVOICE SLIP*\n`;
+      text += `*Order Reference:* ${order.orderId}\n`;
+      text += `*Date:* ${new Date(order.createdAt).toLocaleDateString('en-GB')}\n\n`;
+      text += `🏪 *Store:* ${c.shopName}\n`;
+      text += `• *Attn:* ${c.contactName || 'Store Manager'}\n`;
+      text += `• *Delivery Address:* ${c.shopAddress}, ${c.city || ''} ${c.postcode || ''}\n\n`;
+      text += `📋 *PURCHASE SUMMARY (${order.totals.totalItems} Units)*\n`;
+      text += `────────────────────\n`;
+      order.items.forEach((item, index) => {
+        text += `${index + 1}. [${item.code}] ${item.name}\n`;
+        text += `   Qty: *${item.quantity}* × £${item.unitExVat.toFixed(2)} = *£${item.lineExVat.toFixed(2)}* (+VAT)\n`;
+      });
+      text += `────────────────────\n`;
+      text += `Subtotal (Excl. VAT): *£${order.totals.subtotalExVat.toFixed(2)}*\n`;
+      text += `UK VAT (20%): *£${order.totals.vatAmount.toFixed(2)}*\n`;
+      text += `*TOTAL PAYABLE (Inc. VAT): £${order.totals.totalIncVat.toFixed(2)}*\n\n`;
+      text += `🏛️ *Bank Transfer (BACS) Payment Details:*\n`;
+      text += `Bank: ${this.settings.bankName || 'Barclays Bank UK'}\n`;
+      text += `Account Name: ${this.settings.accountName || 'AYAPA WHOLESALE LTD'}\n`;
+      text += `Sort Code: ${this.settings.sortCode || '20-00-00'}\n`;
+      text += `Account No: ${this.settings.accountNumber || '83920192'}\n`;
+      text += `Reference: *${order.orderId}*\n\n`;
+      text += `📞 For order support or inquiries, contact AYAPA wholesale dispatch on +44 7767 935049.`;
+
+      const encoded = encodeURIComponent(text);
+      return customerPhone ? `https://wa.me/${customerPhone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    }
+
+    // Default target: AYAPA EPOS WhatsApp (+44 7767 935049)
+    const targetPhone = this.cleanPhoneNumber(this.settings.whatsappNumber || '447767935049');
 
     let text = `📦 *NEW WHOLESALE ORDER - AYAPA ACCESSORIES*\n`;
     text += `*Order ID:* ${order.orderId}\n`;
@@ -491,6 +576,43 @@ class Store {
 
     const encoded = encodeURIComponent(text);
     return `https://wa.me/${targetPhone}?text=${encoded}`;
+  }
+
+  // --- Email Invoice Link Generator ---
+  generateEmailInvoice(order) {
+    const c = order.client;
+    const subject = `AYAPA Wholesale Invoice #${order.orderId} - ${c.shopName}`;
+    let body = `Hello ${c.contactName || c.shopName},\n\n`;
+    body += `Thank you for your wholesale order with AYAPA Mobile Accessories UK!\n\n`;
+    body += `PRO-FORMA INVOICE DETAILS\n`;
+    body += `==========================================\n`;
+    body += `Invoice Ref: ${order.orderId}\n`;
+    body += `Date: ${new Date(order.createdAt).toLocaleDateString('en-GB')}\n`;
+    body += `Client Store: ${c.shopName}\n`;
+    body += `Delivery Address: ${c.shopAddress}, ${c.city || ''} ${c.postcode || ''}\n`;
+    body += `Contact Tel: ${c.mobileNumber}\n\n`;
+    body += `ITEMIZED BREAKDOWN\n`;
+    body += `------------------------------------------\n`;
+    order.items.forEach((item, index) => {
+      body += `${index + 1}. [${item.code}] ${item.name}\n`;
+      body += `   Quantity: ${item.quantity} | Unit Ex VAT: £${item.unitExVat.toFixed(2)} | Total Ex: £${item.lineExVat.toFixed(2)}\n`;
+    });
+    body += `------------------------------------------\n`;
+    body += `Subtotal (Excl. VAT): £${order.totals.subtotalExVat.toFixed(2)}\n`;
+    body += `UK VAT (20%): £${order.totals.vatAmount.toFixed(2)}\n`;
+    body += `TOTAL PAYABLE (Inc. VAT): £${order.totals.totalIncVat.toFixed(2)}\n\n`;
+    body += `BACS PAYMENT INSTRUCTIONS\n`;
+    body += `------------------------------------------\n`;
+    body += `Bank: ${this.settings.bankName || 'Barclays Bank UK'}\n`;
+    body += `Account Name: ${this.settings.accountName || 'AYAPA WHOLESALE LTD'}\n`;
+    body += `Sort Code: ${this.settings.sortCode || '20-00-00'}\n`;
+    body += `Account Number: ${this.settings.accountNumber || '83920192'}\n`;
+    body += `Payment Reference: ${order.orderId}\n\n`;
+    body += `For any inquiries or dispatch updates, please contact AYAPA EPOS WhatsApp at +44 7767 935049.\n\n`;
+    body += `AYAPA MOBILE ACCESSORIES UK\nhttps://monk-24.github.io/Ayapa/`;
+
+    const mailto = `mailto:${c.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    return { subject, body, mailto };
   }
 
   // --- Filtering & Sorting ---
